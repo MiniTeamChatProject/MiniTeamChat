@@ -106,6 +106,8 @@ temp/
 *.tmp
 *.bak
 *.old
+test.html
+
 
 # Optional: add any workspace-specific paths you want to ignore below
 # e.g., local build folders for services, editor-specific files
