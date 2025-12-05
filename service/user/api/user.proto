@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "./;userpb";
+
+service UserService {
+  rpc GetUser(GetUserRequest) returns (GetUserReply);
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenReply);
+}
+
+message GetUserRequest { string id = 1; }
+message GetUserReply { string id = 1; string username = 2; string email = 3; }
+
+message VerifyTokenRequest { string token = 1; }
+message VerifyTokenReply { bool ok = 1; string user_id = 2; }
