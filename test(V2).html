@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniChat 简易版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 font-sans">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- 头部状态栏 -->
+        <div class="bg-white p-4 rounded-lg shadow flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">💬 MiniChat 面板</h1>
+            <div id="userStatus">
+                <span class="text-gray-500">未登录</span>
+            </div>
+        </div>
+
+        <!-- 登录区域 (登录后隐藏) -->
+        <div id="loginSection" class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-bold mb-4">🔑 登录</h2>
+            <div class="flex gap-4">
+                <input type="email" id="email" value="student_01@example.com" class="border p-2 rounded w-64" placeholder="邮箱">
+                <input type="password" id="pwd" value="123456" class="border p-2 rounded w-48" placeholder="密码">
+                <button onclick="login()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">登录</button>
+            </div>
+            <p id="loginMsg" class="mt-2 text-sm text-red-500"></p>
+        </div>
+
+        <!-- 房间区域 (登录前隐藏) -->
+        <div id="roomSection" class="hidden space-y-6">
+            
+            <!-- 创建房间 -->
+            <div class="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
+                <h2 class="text-lg font-bold mb-4">🏠 创建新房间</h2>
+                <div class="flex gap-4">
+                    <input type="text" id="roomName" class="border p-2 rounded w-64" placeholder="输入房间名 (例如: 前端摸鱼群)">
+                    <button onclick="createRoom()" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">创建</button>
+                </div>
+            </div>
+
+            <!-- 房间列表 -->
+            <div class="bg-white p-6 rounded-lg shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">📋 房间列表</h2>
+                    <button onclick="loadRooms()" class="text-blue-600 text-sm hover:underline">刷新列表</button>
+                </div>
+                <div id="roomList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- 房间卡片会插在这里 -->
+                    <p class="text-gray-400">暂无房间...</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const USER_API = "http://localhost:8081";
+        const ROOM_API = "http://localhost:8082";
+        let token = localStorage.getItem("token");
+        let username = localStorage.getItem("username");
+
+        // 初始化检查
+        if (token) {
+            showLoggedIn();
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('pwd').value;
+            
+            try {
+                const res = await fetch(`${USER_API}/login`, {
+                    method: 'POST',
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    token = data.token;
+                    username = data.username;
+                    localStorage.setItem("token", token);
+                    localStorage.setItem("username", username);
+                    showLoggedIn();
+                    document.getElementById('loginMsg').innerText = "";
+                } else {
+                    document.getElementById('loginMsg').innerText = "登录失败: " + data.error;
+                }
+            } catch (e) {
+                alert("无法连接用户服务，请检查 8081 端口");
+            }
+        }
+
+        function showLoggedIn() {
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('roomSection').classList.remove('hidden');
+            document.getElementById('userStatus').innerHTML = `
+                <span class="font-bold text-blue-600 mr-2">${username}</span>
+                <button onclick="logout()" class="text-xs text-red-500 border border-red-200 px-2 py-1 rounded">退出</button>
+            `;
+            loadRooms();
+        }
+
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+
+        async function createRoom() {
+            const name = document.getElementById('roomName').value;
+            if (!name) return alert("请输入房间名");
+
+            try {
+                const res = await fetch(`${ROOM_API}/rooms`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}` // 关键：带上 Token
+                    },
+                    body: JSON.stringify({ name })
+                });
+                if (res.ok) {
+                    document.getElementById('roomName').value = "";
+                    loadRooms(); // 刷新列表
+                } else {
+                    alert("创建失败 (可能是 Token 过期，请重新登录)");
+                }
+            } catch (e) {
+                alert("无法连接房间服务，请检查 8082 端口");
+            }
+        }
+
+        async function loadRooms() {
+            try {
+                const res = await fetch(`${ROOM_API}/rooms`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                const list = document.getElementById('roomList');
+                
+                if (data.rooms && data.rooms.length > 0) {
+                    list.innerHTML = data.rooms.map(room => `
+                        <div class="border p-4 rounded hover:bg-blue-50 transition cursor-pointer flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold text-lg text-gray-800">${room.name}</h3>
+                                <p class="text-xs text-gray-500">ID: ${room.id}</p>
+                            </div>
+                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">进入</span>
+                        </div>
+                    `).join('');
+                } else {
+                    list.innerHTML = `<p class="text-gray-400 col-span-2 text-center py-4">还没有房间，快创建一个吧！</p>`;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    </script>
+</body>
+</html>

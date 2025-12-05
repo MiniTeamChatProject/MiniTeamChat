@@ -11,7 +11,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	// ❗请确认你的 go.mod 第一行是 module minichat/services/user
 	"minichat/services/user/model"
 )
 
