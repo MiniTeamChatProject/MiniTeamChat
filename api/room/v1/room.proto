@@ -1,0 +1,171 @@
+syntax = "proto3";
+package room.v1;
+
+option go_package = "api/room/v1;v1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+service RoomService {
+  //创建房间
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomReply) {
+    option (google.api.http) = {
+      post: "/v1/rooms"
+      body: "*"
+    };
+  }
+  // 删除房间（只有房主可以删除）
+  rpc DeleteRoom(DeleteRoomRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/v1/rooms/{id}"
+    };
+  }
+  // 加入房间
+  rpc JoinRoom(JoinRoomRequest) returns (JoinRoomReply) {
+    option (google.api.http) = {
+      post: "/v1/rooms/{room_id}/join"
+      body: "*"
+    };
+  }
+  // 离开房间
+  rpc LeaveRoom(LeaveRoomRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v1/rooms/{room_id}/leave"
+      body: "*" 
+    };
+  }
+  //根据 ID 查询单个房间
+  rpc GetRoom(GetRoomRequest) returns (Room) {
+    option (google.api.http) = {
+      get: "/v1/rooms/{id}"
+    };
+  }
+  //列出房间（可按用户 ID 过滤）
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsReply) {
+    option (google.api.http) = {
+      get: "/v1/rooms"
+    };
+  }
+  //查询指定房间的消息列表
+  rpc GetMessages(GetMessagesRequest) returns (GetMessagesReply) {
+    option (google.api.http) = {
+      get: "/v1/rooms/{room_id}/messages"
+    };
+  }
+
+  // 查询房间成员列表
+  rpc ListRoomMembers(ListRoomMembersRequest) returns (ListRoomMembersReply) {
+    option (google.api.http) = {
+      get: "/v1/rooms/{room_id}/members"
+    };
+  }
+  
+  // 检查是否为房间成员
+  rpc IsMember(IsMemberRequest) returns (IsMemberReply) {
+    option (google.api.http) = {
+      get: "/v1/rooms/{room_id}/is-member"
+    };
+  }
+}
+
+//数据结构（Message）定义
+message Room {
+  string id = 1;
+  string name = 2;
+  string owner_id = 3;
+  string created_at = 4;
+}
+
+message RoomMember {
+  string room_id = 1;
+  string user_id = 2;
+  string joined_at = 3;
+  string role = 4; // "owner", "admin", "member"
+}
+
+// 创建房间的请求参数
+message CreateRoomRequest {
+  string name = 1;
+  string owner_id = 2; // 从JWT获取，不从前端传入
+}
+
+// 创建房间的响应结果
+message CreateRoomReply {
+  Room room = 1;
+}
+
+//查询单个房间
+message GetRoomRequest {
+  string id = 1;
+}
+
+// 列出房间的请求参数
+message ListRoomsRequest {
+  string user_id = 1; // 可选，过滤用户创建的房间
+}
+
+// 列出房间的响应结果
+message ListRoomsReply {
+  repeated Room rooms = 1;
+}
+
+// 查询房间消息的请求参数（分页查询）
+message GetMessagesRequest {
+  string room_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+// 删除房间
+message DeleteRoomRequest {
+  string id = 1;
+}
+
+// 删除房间响应（空响应，仅确认操作成功）
+message DeleteRoomReply {}
+
+
+// 加入房间
+message JoinRoomRequest {
+  string room_id = 1;
+}
+message JoinRoomReply {
+  RoomMember member = 1;
+}
+
+// 离开房间
+message LeaveRoomRequest {
+  string room_id = 1;
+}
+
+// 离开房间响应（空响应，仅确认操作成功）
+message LeaveRoomReply {}
+
+// 查询房间成员
+message ListRoomMembersRequest {
+  string room_id = 1;
+}
+message ListRoomMembersReply {
+  repeated RoomMember members = 1;
+}
+
+// 检查是否为成员
+message IsMemberRequest {
+  string room_id = 1;
+}
+message IsMemberReply {
+  bool is_member = 1;
+  string role = 2;
+}
+
+message Message {
+  string id = 1;
+  string room_id = 2;
+  string sender_id = 3;
+  string sender_name = 4; // 前端展示用，后端不存储
+  string content = 5;
+  string created_at = 6;
+}
+message GetMessagesReply {
+  repeated Message messages = 1;
+}

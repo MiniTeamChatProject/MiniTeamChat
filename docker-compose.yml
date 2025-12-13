@@ -1,0 +1,16 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: roomdb          # 初始创建的数据库
+      POSTGRES_USER: hansun       # 数据库用户名
+      POSTGRES_PASSWORD: w123456w  # 数据库密码
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
