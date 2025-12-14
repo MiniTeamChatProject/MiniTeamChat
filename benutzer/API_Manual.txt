@@ -1,0 +1,36 @@
+基础 URL: http://localhost:8080
+1. 用户注册
+URL: /register
+Method: POST
+Body:
+code
+JSON
+{
+  "username": "tom",
+  "password": "123", 
+  "nickname": "TomCat"
+}
+2. 用户登录
+URL: /login
+Method: POST
+Body:
+code
+JSON
+{
+  "username": "tom",
+  "password": "123"
+}
+Response: 返回 token，请妥善保存。
+3. 获取个人信息
+URL: /user/profile
+Method: GET
+Headers:
+Authorization: Bearer <你的Token>
+🛠 功能总结 (Technical Summary)
+安全性:
+密码使用 Bcrypt 加密存储，拒绝明文。
+登录使用 JWT (JSON Web Token) 进行无状态认证。
+架构:
+Web 框架采用 Gin。
+数据库 ORM 采用 GORM，支持表结构自动迁移。
+中间件拦截器实现了 Token 的解析与验证。
