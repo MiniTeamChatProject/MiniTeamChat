@@ -4,21 +4,23 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"MiniTeamChat/api/room/v1"
+	v1 "MiniTeamChat/api/room/v1"
 	"MiniTeamChat/internal/biz"
 	"MiniTeamChat/internal/client"
 	"MiniTeamChat/internal/data"
+
+	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 type RoomService struct {
-	v1.UnimplementedRoomServiceServer // 嵌入gRPC的未实现服务结构体，兼容接口
-	roomUsecase    biz.RoomBiz        // 房间核心业务逻辑（创建/删除/查询）
-	memberUsecase  biz.RoomMemberBiz  // 房间成员业务逻辑（加入/离开/查询）
-	messageUsecase biz.MessageBiz     // 房间消息业务逻辑（获取历史消息）
-	userClient     client.UserClient  // 用户服务客户端（获取用户名等）
+	v1.UnimplementedRoomServiceServer                   // 嵌入gRPC的未实现服务结构体，兼容接口
+	roomUsecase                       biz.RoomBiz       // 房间核心业务逻辑（创建/删除/查询）
+	memberUsecase                     biz.RoomMemberBiz // 房间成员业务逻辑（加入/离开/查询）
+	messageUsecase                    biz.MessageBiz    // 房间消息业务逻辑（获取历史消息）
+	userClient                        client.UserClient // 用户服务客户端（获取用户名等）
 }
 
 func NewRoomService(
@@ -106,7 +108,7 @@ func (s *RoomService) ListRooms(ctx context.Context, req *v1.ListRoomsRequest) (
 }
 
 // DeleteRoom 删除房间
-func (s *RoomService) DeleteRoom(ctx context.Context, req *v1.DeleteRoomRequest) (*v1.DeleteRoomReply, error) {
+func (s *RoomService) DeleteRoom(ctx context.Context, req *v1.DeleteRoomRequest) (*emptypb.Empty, error) {
 	userIDStr, err := getCurrentUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -127,7 +129,7 @@ func (s *RoomService) DeleteRoom(ctx context.Context, req *v1.DeleteRoomRequest)
 		return nil, handleBizError(err)
 	}
 
-	return &v1.DeleteRoomReply{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // JoinRoom 加入房间
@@ -158,7 +160,7 @@ func (s *RoomService) JoinRoom(ctx context.Context, req *v1.JoinRoomRequest) (*v
 }
 
 // LeaveRoom 离开房间
-func (s *RoomService) LeaveRoom(ctx context.Context, req *v1.LeaveRoomRequest) (*v1.LeaveRoomReply, error) {
+func (s *RoomService) LeaveRoom(ctx context.Context, req *v1.LeaveRoomRequest) (*emptypb.Empty, error) {
 	userIDStr, err := getCurrentUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -179,7 +181,7 @@ func (s *RoomService) LeaveRoom(ctx context.Context, req *v1.LeaveRoomRequest) (
 		return nil, handleBizError(err)
 	}
 
-	return &v1.LeaveRoomReply{}, nil
+	return &emptypb.Empty{}, nil
 }
 
 // ListRoomMembers 获取房间成员列表
@@ -238,7 +240,7 @@ func (s *RoomService) GetMessages(ctx context.Context, req *v1.GetMessagesReques
 		if err == nil && user != nil {
 			senderName = user.Username
 		}
-		
+
 		reply.Messages[i] = s.convertMessageToProto(msg, senderName)
 	}
 
@@ -304,3 +306,4 @@ func (s *RoomService) convertMessageToProto(msg *data.Message, senderName string
 		CreatedAt:  msg.CreatedAt.Format(time.RFC3339),
 	}
 }
+

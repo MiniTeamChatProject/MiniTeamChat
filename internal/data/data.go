@@ -17,8 +17,8 @@ type Data struct {
 	db *gorm.DB
 
 	// 仓库接口
-	Rooms      RoomRepo       // 房间仓库
-	Messages   MessageRepo    // 消息仓库
+	Rooms       RoomRepo       // 房间仓库
+	Messages    MessageRepo    // 消息仓库
 	RoomMembers RoomMemberRepo // 房间成员仓库
 }
 
@@ -27,11 +27,11 @@ func NewData() (*Data, error) {
 	// 构建数据库连接字符串
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
-		getEnv("DB_HOST", "localhost"),     // 数据库主机地址，默认 localhost
-		getEnv("DB_USER", "user"),          // 数据库用户名，默认 user
-		getEnv("DB_PASSWORD", "password"),  // 数据库密码，默认 password
-		getEnv("DB_NAME", "chatdb"),        // 数据库名称，默认 chatdb
-		getEnv("DB_PORT", "5432"),          // 数据库端口，默认 5432
+		getEnv("DB_HOST", "localhost"),    // 数据库主机地址，默认 localhost
+		getEnv("DB_USER", "hansun"),       // 数据库用户名，默认 hansun
+		getEnv("DB_PASSWORD", "w123456w"), // 数据库密码，默认 w123456w
+		getEnv("DB_NAME", "roomdb"),       // 数据库名称，默认 roomdb
+		getEnv("DB_PORT", "5432"),         // 数据库端口，默认 5432
 	)
 
 	// 连接数据库
@@ -67,26 +67,27 @@ func getEnv(key, fallback string) string {
 
 // RoomRepo 定义房间相关操作的接口
 type RoomRepo interface {
-	Create(ctx context.Context, room *Room) error              // 创建房间
-	FindByID(ctx context.Context, id uuid.UUID) (*Room, error) // 根据ID查找房间
+	Create(ctx context.Context, room *Room) error                       // 创建房间
+	FindByID(ctx context.Context, id uuid.UUID) (*Room, error)          // 根据ID查找房间
 	FindByOwner(ctx context.Context, ownerID uuid.UUID) ([]Room, error) // 根据房主ID查找房间列表
-	Delete(ctx context.Context, id uuid.UUID) error           // 删除房间
+	FindAllRooms(ctx context.Context) ([]Room, error)                   // 查找所有房间
+	Delete(ctx context.Context, id uuid.UUID) error                     // 删除房间
 }
 
 // MessageRepo 定义消息相关操作的接口
 type MessageRepo interface {
-	Create(ctx context.Context, msg *Message) error // 创建消息
+	Create(ctx context.Context, msg *Message) error                                         // 创建消息
 	ListByRoom(ctx context.Context, roomID uuid.UUID, limit, offset int) ([]Message, error) // 根据房间ID分页查询消息
-	CountByRoom(ctx context.Context, roomID uuid.UUID) (int64, error) // 获取房间消息总数
+	CountByRoom(ctx context.Context, roomID uuid.UUID) (int64, error)                       // 获取房间消息总数
 }
 
 // RoomMemberRepo 定义房间成员相关操作的接口
 type RoomMemberRepo interface {
-	Add(ctx context.Context, member *RoomMember) error // 添加房间成员
-	IsMember(ctx context.Context, roomID, userID uuid.UUID) (bool, error) // 检查用户是否为房间成员
+	Add(ctx context.Context, member *RoomMember) error                             // 添加房间成员
+	IsMember(ctx context.Context, roomID, userID uuid.UUID) (bool, error)          // 检查用户是否为房间成员
 	FindMembersByRoom(ctx context.Context, roomID uuid.UUID) ([]RoomMember, error) // 根据房间ID查找所有成员
-	Delete(ctx context.Context, roomID, userID uuid.UUID) error // 删除房间成员（离开房间）
-	GetRole(ctx context.Context, roomID, userID uuid.UUID) (string, error) // 获取成员在房间中的角色
+	Delete(ctx context.Context, roomID, userID uuid.UUID) error                    // 删除房间成员（离开房间）
+	GetRole(ctx context.Context, roomID, userID uuid.UUID) (string, error)         // 获取成员在房间中的角色
 }
 
 // --- 仓库实现（如果项目规模增大，可以拆分到单独文件）---
@@ -102,8 +103,8 @@ type roomMemberRepoImpl struct{ db *gorm.DB }
 
 // Create 创建新房间
 func (r *roomRepoImpl) Create(ctx context.Context, room *Room) error {
-	room.ID = uuid.New()           // 生成UUID作为房间ID
-	room.CreatedAt = time.Now()    // 设置创建时间为当前时间
+	room.ID = uuid.New()                            // 生成UUID作为房间ID
+	room.CreatedAt = time.Now()                     // 设置创建时间为当前时间
 	return r.db.WithContext(ctx).Create(room).Error // 保存到数据库
 }
 
@@ -150,10 +151,17 @@ func (r *roomRepoImpl) Delete(ctx context.Context, id uuid.UUID) error {
 	return tx.Commit().Error
 }
 
+// FindAllRooms 查询所有房间
+func (r *roomRepoImpl) FindAllRooms(ctx context.Context) ([]Room, error) {
+	var rooms []Room
+	err := r.db.WithContext(ctx).Find(&rooms).Error
+	return rooms, err
+}
+
 // Create 创建新消息
 func (m *messageRepoImpl) Create(ctx context.Context, msg *Message) error {
-	msg.ID = uuid.New()           // 生成UUID作为消息ID
-	msg.CreatedAt = time.Now()    // 设置创建时间为当前时间
+	msg.ID = uuid.New()                            // 生成UUID作为消息ID
+	msg.CreatedAt = time.Now()                     // 设置创建时间为当前时间
 	return m.db.WithContext(ctx).Create(msg).Error // 保存到数据库
 }
 
@@ -161,10 +169,10 @@ func (m *messageRepoImpl) Create(ctx context.Context, msg *Message) error {
 func (m *messageRepoImpl) ListByRoom(ctx context.Context, roomID uuid.UUID, limit, offset int) ([]Message, error) {
 	var msgs []Message
 	err := m.db.WithContext(ctx).
-		Where("room_id = ?", roomID).   // 过滤指定房间的消息
-		Order("created_at ASC").        // 按创建时间升序排列（最早的在前）
-		Limit(limit).                   // 限制返回数量
-		Offset(offset).                 // 设置分页偏移量
+		Where("room_id = ?", roomID). // 过滤指定房间的消息
+		Order("created_at ASC").      // 按创建时间升序排列（最早的在前）
+		Limit(limit).                 // 限制返回数量
+		Offset(offset).               // 设置分页偏移量
 		Find(&msgs).Error
 	return msgs, err
 }
@@ -181,7 +189,7 @@ func (m *messageRepoImpl) CountByRoom(ctx context.Context, roomID uuid.UUID) (in
 
 // Add 添加房间成员
 func (rm *roomMemberRepoImpl) Add(ctx context.Context, member *RoomMember) error {
-	member.JoinedAt = time.Now() // 设置加入时间为当前时间
+	member.JoinedAt = time.Now()                       // 设置加入时间为当前时间
 	return rm.db.WithContext(ctx).Create(member).Error // 保存到数据库
 }
 
@@ -214,15 +222,15 @@ func (rm *roomMemberRepoImpl) Delete(ctx context.Context, roomID, userID uuid.UU
 	result := rm.db.WithContext(ctx).
 		Where("room_id = ? AND user_id = ?", roomID, userID).
 		Delete(&RoomMember{})
-	
+
 	if result.Error != nil {
 		return result.Error
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("用户不是房间成员")
 	}
-	
+
 	return nil
 }
 
@@ -232,10 +240,10 @@ func (rm *roomMemberRepoImpl) GetRole(ctx context.Context, roomID, userID uuid.U
 	err := rm.db.WithContext(ctx).
 		Where("room_id = ? AND user_id = ?", roomID, userID).
 		First(&member).Error
-	
+
 	if err != nil {
 		return "", err
 	}
-	
+
 	return member.Role, nil
 }

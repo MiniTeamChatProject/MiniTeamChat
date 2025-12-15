@@ -1,87 +1,97 @@
 package main
 
 import (
-	"flag"
+	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"MiniTeamChat/internal/conf"
-
-	"github.com/go-kratos/kratos/v2"
-	"github.com/go-kratos/kratos/v2/config"
-	"github.com/go-kratos/kratos/v2/config/file"
-	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware/tracing"
-	"github.com/go-kratos/kratos/v2/transport/grpc"
-	"github.com/go-kratos/kratos/v2/transport/http"
-
-	_ "go.uber.org/automaxprocs"
+	"MiniTeamChat/internal/biz"
+	"MiniTeamChat/internal/client"
+	"MiniTeamChat/internal/data"
+	"MiniTeamChat/internal/server"
+	"MiniTeamChat/internal/service"
 )
-
-// go build -ldflags "-X main.Version=x.y.z"
-var (
-	// Name is the name of the compiled software.
-	Name string
-	// Version is the version of the compiled software.
-	Version string
-	// flagconf is the config flag.
-	flagconf string
-
-	id, _ = os.Hostname()
-)
-
-func init() {
-	flag.StringVar(&flagconf, "conf", "../../configs", "config path, eg: -conf config.yaml")
-}
-
-func newApp(logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
-	return kratos.New(
-		kratos.ID(id),
-		kratos.Name(Name),
-		kratos.Version(Version),
-		kratos.Metadata(map[string]string{}),
-		kratos.Logger(logger),
-		kratos.Server(
-			gs,
-			hs,
-		),
-	)
-}
 
 func main() {
-	flag.Parse()
-	logger := log.With(log.NewStdLogger(os.Stdout),
-		"ts", log.DefaultTimestamp,
-		"caller", log.DefaultCaller,
-		"service.id", id,
-		"service.name", Name,
-		"service.version", Version,
-		"trace.id", tracing.TraceID(),
-		"span.id", tracing.SpanID(),
-	)
-	c := config.New(
-		config.WithSource(
-			file.NewSource(flagconf),
-		),
-	)
-	defer c.Close()
-
-	if err := c.Load(); err != nil {
-		panic(err)
-	}
-
-	var bc conf.Bootstrap
-	if err := c.Scan(&bc); err != nil {
-		panic(err)
-	}
-
-	app, cleanup, err := wireApp(bc.Server, bc.Data, logger)
+	// 1. 初始化数据层
+	log.Println("Initializing data layer...")
+	dataLayer, err := data.NewData()
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to initialize data layer: %v", err)
 	}
-	defer cleanup()
+	log.Println("Data layer initialized successfully")
 
-	// start and wait for stop signal
-	if err := app.Run(); err != nil {
-		panic(err)
+	// 2. 初始化业务逻辑层
+	log.Println("Initializing business logic layer...")
+	// 暂时注释掉用户服务客户端，使房间服务能够独立运行
+	// userClient, err := client.NewUserClient("localhost:9090") // user-service地址
+	// if err != nil {
+	// 	log.Fatalf("Failed to initialize user service client: %v", err)
+	// }
+	// defer func() {
+	// 	if c, ok := userClient.(interface{ Close() error }); ok {
+	// 		c.Close()
+	// 	}
+	// }()
+	// log.Println("User service client initialized successfully")
+
+	// 使用nil作为用户服务客户端
+	var userClient client.UserClient
+
+	roomUsecase := biz.NewRoomUsecase(
+		dataLayer.Rooms,
+		dataLayer.RoomMembers,
+		userClient,
+	)
+
+	memberUsecase := biz.NewRoomMemberUsecase(
+		dataLayer.RoomMembers,
+		dataLayer.Rooms,
+		userClient,
+	)
+
+	messageUsecase := biz.NewMessageUsecase(
+		dataLayer.Messages,
+		dataLayer.Rooms,
+		dataLayer.RoomMembers,
+		userClient,
+	)
+	log.Println("Business logic layer initialized successfully")
+
+	// 4. 初始化服务层
+	log.Println("Initializing service layer...")
+	roomService := service.NewRoomService(
+		roomUsecase,
+		memberUsecase,
+		messageUsecase,
+		userClient,
+	)
+	log.Println("Service layer initialized successfully")
+
+	// 5. 初始化服务器
+	log.Println("Initializing servers...")
+	config := server.ServerConfig{
+		GRPCAddr: "localhost:8081",
+		HTTPAddr: "localhost:8082",
 	}
+
+	appServer, err := server.NewServer(roomService, config)
+	if err != nil {
+		log.Fatalf("Failed to initialize servers: %v", err)
+	}
+	log.Println("Servers initialized successfully")
+
+	// 6. 启动服务器
+	log.Println("Starting servers...")
+	appServer.Start()
+
+	// 7. 优雅处理退出信号
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down servers...")
+	appServer.Stop()
+	log.Println("Application exited gracefully")
 }

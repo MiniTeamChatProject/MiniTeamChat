@@ -112,11 +112,19 @@ func (uc *RoomUsecase) ListRoomsByOwner(ctx context.Context, ownerID uuid.UUID) 
 
 // ListAllRooms 列出所有房间（用于公开房间列表）
 func (uc *RoomUsecase) ListAllRooms(ctx context.Context) ([]*data.Room, error) {
-	// 实际项目中可以添加分页和过滤
-	var rooms []*data.Room
-	// 这里需要扩展RoomRepo接口以支持查询所有房间
-	// 暂时返回空切片，实际实现时需要完善
-	return rooms, nil
+	rooms, err := uc.roomRepo.FindAllRooms(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为指针切片
+	result := make([]*data.Room, len(rooms))
+	for i, room := range rooms {
+		r := room
+		result[i] = &r
+	}
+
+	return result, nil
 }
 
 // DeleteRoom 删除房间，只有房主可以删除

@@ -9,17 +9,20 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"MiniTeamChat/api/user/v1"
+
+	// 假设user-service的proto定义在以下路径
+	// 实际项目中应该根据user-service的实际位置进行调整
+	v1 "MiniTeamChat/api/user/v1"
 )
 
 // UserClient 定义user-service客户端接口
 type UserClient interface {
 	// VerifyToken 验证JWT token
 	VerifyToken(ctx context.Context, token string) (*v1.VerifyTokenReply, error)
-	
+
 	// GetUser 根据ID获取用户信息
 	GetUser(ctx context.Context, userID string) (*v1.GetUserReply, error)
-	
+
 	// HealthCheck 检查user-service健康状态
 	HealthCheck(ctx context.Context) error
 }
@@ -38,8 +41,8 @@ func NewUserClient(addr string, opts ...grpc.DialOption) (UserClient, error) {
 		grpc.WithBlock(),
 		grpc.WithTimeout(5 * time.Second),
 		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(1024 * 1024), // 1MB
-			grpc.MaxCallSendMsgSize(1024 * 1024), // 1MB
+			grpc.MaxCallRecvMsgSize(1024*1024), // 1MB
+			grpc.MaxCallSendMsgSize(1024*1024), // 1MB
 		),
 	}
 

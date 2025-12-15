@@ -1,32 +1,46 @@
 package server
 
 import (
-	v1 "MiniTeamChat/api/helloworld/v1"
-	"MiniTeamChat/internal/conf"
-	"MiniTeamChat/internal/service"
-
-	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	"github.com/go-kratos/kratos/v2/transport/http"
+	"context"
+	"log"
+	"net/http"
+	"time"
 )
 
-// NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, logger log.Logger) *http.Server {
-	var opts = []http.ServerOption{
-		http.Middleware(
-			recovery.Recovery(),
-		),
+type HTTPServer struct {
+	server *http.Server
+}
+
+func NewHTTPServer(grpcAddr string) (*HTTPServer, error) {
+	// 创建简单的HTTP服务器，返回gRPC服务器状态
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// 创建HTTP服务器
+	server := &http.Server{
+		Addr:         ":8080", // 默认HTTP端口
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
-	if c.Http.Network != "" {
-		opts = append(opts, http.Network(c.Http.Network))
-	}
-	if c.Http.Addr != "" {
-		opts = append(opts, http.Address(c.Http.Addr))
-	}
-	if c.Http.Timeout != nil {
-		opts = append(opts, http.Timeout(c.Http.Timeout.AsDuration()))
-	}
-	srv := http.NewServer(opts...)
-	v1.RegisterGreeterHTTPServer(srv, greeter)
-	return srv
+
+	return &HTTPServer{
+		server: server,
+	}, nil
+}
+
+// Start 启动HTTP服务器
+func (s *HTTPServer) Start() error {
+	log.Printf("HTTP server listening on %s", s.server.Addr)
+	return s.server.ListenAndServe()
+}
+
+// Shutdown 优雅关闭HTTP服务器
+func (s *HTTPServer) Shutdown(ctx context.Context) error {
+	log.Println("Gracefully shutting down HTTP server...")
+	return s.server.Shutdown(ctx)
 }
